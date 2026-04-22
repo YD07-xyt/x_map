@@ -1,0 +1,19 @@
+x_map_node:
+    # 地图参数
+    voxScale: 0.1
+    detection_range: 10.0
+    global_x_lower: -50.0
+    global_x_upper: 50.0
+    global_y_lower: -50.0
+    global_y_upper: 50.0
+      
+    # 概率参数
+    p_hit: 0.7
+    p_miss: 0.3
+    p_min: 0.1
+    p_max: 0.9
+    p_occ: 0.5
+    
+    # 话题名称
+    cloud_sub_name: "/lio/cloud_world"
+    odom_sub_name: "/lio/odom"
