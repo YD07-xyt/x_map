@@ -41,16 +41,17 @@ public:
   GridMap(const GridMapCofig &map_config) {
     params_ = map_config;
     // init map
+    inv_grid_interval_ = 1 / params_.voxScale; 
     GLX_SIZE_ = ceil((params_.global_x_upper_ - params_.global_x_lower_) /
                      params_.voxScale);
     GLY_SIZE_ = ceil((params_.global_y_upper_ - params_.global_y_lower_) /
                      params_.voxScale);
     GLXY_SIZE_ = GLX_SIZE_ * GLY_SIZE_;
-    gridmap_ = new uint8_t[GLXY_SIZE_];
-    memset(gridmap_, Unknown, GLXY_SIZE_ * sizeof(uint8_t));
+    gridmap_ = std::make_unique<uint8_t[]>(GLXY_SIZE_);
+    memset(gridmap_.get(), Unknown, GLXY_SIZE_ * sizeof(uint8_t));
 
-    lcoal_map_size_.x() = ceil(params_.detection_range / params_.voxScale) * 2;
-    lcoal_map_size_.y() = ceil(params_.detection_range / params_.voxScale) * 2;
+    local_map_size_.x() = ceil(params_.detection_range / params_.voxScale) * 2;
+    local_map_size_.y() = ceil(params_.detection_range / params_.voxScale) * 2;
 
     // Occupancy grid map
     double p_hit, p_miss, p_min, p_max, p_occ;
@@ -80,14 +81,13 @@ public:
     return cloud_;
   }
   ~GridMap() {
-    delete[] gridmap_;
-    gridmap_ = nullptr;
+
   }
   //存储珊格占据状态
-  uint8_t *gridmap_ = nullptr;
+  std::unique_ptr<uint8_t[]> gridmap_;
   double get_global_size() { return GLXY_SIZE_; }
 
-  Eigen::Vector2i lcoal_map_size_;
+  Eigen::Vector2i local_map_size_;
 private:
   GridMapCofig params_;
   double local_x_upper_ = -DBL_MAX, local_y_upper_ = -DBL_MAX;
@@ -110,7 +110,7 @@ private:
 
   int GLX_SIZE_, GLY_SIZE_;
   int GLXY_SIZE_;
-  double inv_grid_interval_ = 1 / params_.voxScale;
+  double inv_grid_interval_;
   
   bool occ_need_update_ = false;
 
@@ -163,9 +163,9 @@ public:
             ceil(params_.detection_range / params_.voxScale) * params_.voxScale,
         params_.global_y_upper_);
 
-    lcoal_map_size_.x() =
+    local_map_size_.x() =
         ceil((local_x_upper_ - local_x_lower_) / params_.voxScale);
-    lcoal_map_size_.y() =
+    local_map_size_.y() =
         ceil((local_y_upper_ - local_y_lower_) / params_.voxScale);
   };
   inline void raycastProcess() {
@@ -206,7 +206,7 @@ public:
           coord2gridIndex(odom_pos_xy_), coord2gridIndex(cur_point));
 
       int size = line.size() - 1;
-
+      //TODO : i=0?1
       for (int i = 0; i < size; i++) {
         vox_idx = setCacheOccupancy(line[i], 0);
       }
@@ -389,7 +389,7 @@ public:
     Eigen::Vector2d max_tc =
         Eigen::Vector2d(params_.global_x_upper_, params_.global_y_upper_) - pos;
     Eigen::Vector2d min_tc =
-        Eigen::Vector2d(params_.global_x_lower_, params_.global_x_upper_) - pos;
+        Eigen::Vector2d(params_.global_x_lower_, params_.global_x_lower_) - pos;
 
     double min_t = 1000000;
 

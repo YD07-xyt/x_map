@@ -7,16 +7,15 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/subscription.hpp>
 #include <rclcpp/time.hpp>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <sensor_msgs/msg/point_cloud.hpp>
 #include <tf2/utils.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 namespace ros2 {
 class Ros2 {
 public:
   Ros2(const rclcpp::Node::SharedPtr &node, const map::GridMapCofig &config,
-       std::string odom_sub_name,
-       std::string cloud_sub_name)
+       std::string odom_sub_name, std::string cloud_sub_name)
       : node_(node), map_config_(config), odom_sub_name_(odom_sub_name),
         cloud_sub_name_(cloud_sub_name) {
     grid_map_ = std::make_shared<map::GridMap>(config);
@@ -25,7 +24,10 @@ public:
         [this](sensor_msgs::msg::PointCloud2::SharedPtr msg) {
           cloud_callback(msg);
         });
-
+    pub_gridmap = node_->create_publisher<sensor_msgs::msg::PointCloud2>(
+        "Xmap/gridmap", 10);
+    pub_occgridmap = node_->create_publisher<nav_msgs::msg::OccupancyGrid>(
+        "Xmap/occgridmap", 10);
     odom_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
         odom_sub_name_, 10,
         [this](nav_msgs::msg::Odometry::SharedPtr msg) { odom_callback(msg); });
@@ -33,10 +35,6 @@ public:
                                           [this]() { grid_map_->update(); });
     vis_timer_ = node_->create_wall_timer(std::chrono::milliseconds(500),
                                           [this]() { visCallback(); });
-    pub_gridmap = node_->create_publisher<sensor_msgs::msg::PointCloud2>(
-        "Xmap/gridmap", 10);
-    pub_occgridmap = node_->create_publisher<nav_msgs::msg::OccupancyGrid>(
-        "Xmap/occgridmap", 10);
   };
 
 private:
@@ -111,51 +109,26 @@ private:
     map_vis.header.frame_id = "world";
     this->pub_gridmap->publish(map_vis);
   }
-  void publish_occgridmap() {
-    // 创建 OccupancyGrid 消息
-    nav_msgs::msg::OccupancyGrid occ_grid_msg;
-
-    // 1. 填充 header
-    occ_grid_msg.header.stamp = node_->get_clock()->now();
-    occ_grid_msg.header.frame_id = "world";
-
-    // 2. 填充地图元数据
-    occ_grid_msg.info.resolution =
-        map_config_.voxScale; // 需要根据你的实际接口调整
-    occ_grid_msg.info.width = grid_map_->lcoal_map_size_.x(); // X方向栅格数
-    occ_grid_msg.info.height = grid_map_->lcoal_map_size_.y(); // Y方向栅格数
-
-    // 计算地图原点（栅格索引(0,0)对应的世界坐标）
-    // 假设你的 gridIndex2coordd 函数输入是栅格索引，输出是世界坐标
-    Eigen::Vector2d origin_world =
-        grid_map_->gridIndex2coordd(Eigen::Vector2i(0, 0));
-    occ_grid_msg.info.origin.position.x = origin_world.x();
-    occ_grid_msg.info.origin.position.y = origin_world.y();
-    occ_grid_msg.info.origin.position.z = 0.0;
-    occ_grid_msg.info.origin.orientation.w = 1.0; // 无旋转
-
-    // 3. 填充地图数据
-    occ_grid_msg.data.clear();
-    occ_grid_msg.data.reserve(occ_grid_msg.info.width *
-                              occ_grid_msg.info.height);
-
-    for (int idx = 1; idx < grid_map_->get_global_size(); idx++) {
-      int8_t value;
-
-      if (grid_map_->gridmap_[idx] == map::Occupied) {
-        value = 100; // 障碍物
-      } else if (grid_map_->gridmap_[idx] == map::Unknown) {
-        value = -1; // 未知区域
-      } else {      // Unoccupied 或其他状态
-        value = 0;  // 自由空间
-      }
-
-      occ_grid_msg.data.push_back(value);
+void visCallback() {
+    // 添加调试信息
+    static int call_count = 0;
+    call_count++;
+    
+    if (call_count % 10 == 0) {  // 每5秒打印一次
+        int occupied = 0, unknown = 0, unoccupied = 0;
+        for (int idx = 0; idx < grid_map_->get_global_size(); idx++) {
+            if (grid_map_->gridmap_[idx] == map::Occupied) occupied++;
+            else if (grid_map_->gridmap_[idx] == map::Unknown) unknown++;
+            else if (grid_map_->gridmap_[idx] == map::Unoccupied) unoccupied++;
+        }
+        RCLCPP_INFO(node_->get_logger(), 
+                    "Map stats - Occ:%d, Unocc:%d, Unknown:%d, Total:%d",
+                    occupied, unoccupied, unknown, 
+                    grid_map_->get_global_size());
     }
-
-    // 发布 OccupancyGrid 消息
-    this->pub_occgridmap->publish(occ_grid_msg);
-  }
-  void visCallback() { publish_gridmap(); }
+    
+    publish_gridmap();
+    // publish_occgridmap();
+}
 };
 } // namespace ros2

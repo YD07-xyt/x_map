@@ -13,7 +13,7 @@ def generate_launch_description():
     # 创建节点
     planner_node = Node(
         package='x_map',
-        executable='ros2',  # 你的可执行文件名
+        executable='x_map_node',  # 你的可执行文件名
         name='x_map_node',  # 节点名，必须和 YAML 中的命名空间匹配
         output='screen',
         parameters=[param_file],  # 加载参数文件
